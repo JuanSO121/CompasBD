@@ -105,7 +105,7 @@ ERROR_MESSAGES = {
     "INVALID_CREDENTIALS": "Email o contraseña incorrectos. Verifique sus datos e intente nuevamente.",
     "ACCOUNT_LOCKED": "Su cuenta está temporalmente bloqueada por seguridad. Intente nuevamente en {minutes} minutos.",
     "EMAIL_NOT_VERIFIED": "Debe verificar su email antes de continuar. ¿Desea que le reenviemos el correo de verificación?",
-    "TOKEN_EXPIRED": "El enlace ha expirado por seguridad. Solicite uno nuevo.",
+    "CODE_EXPIRED": "El código de verificación ha expirado. Solicite uno nuevo.",
     "RATE_LIMIT_EXCEEDED": "Ha excedido el límite de intentos. Espere {seconds} segundos antes de intentar nuevamente.",
     "INTERNAL_SERVER_ERROR": "Error interno del servidor. Por favor intente nuevamente en unos momentos.",
     "VALIDATION_ERROR": "Los datos proporcionados no son válidos. Verifique e intente nuevamente.",

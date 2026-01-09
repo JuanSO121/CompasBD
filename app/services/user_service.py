@@ -1,6 +1,6 @@
 # ===== app/services/user_service.py =====
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timedelta  # ✅ IMPORTANTE: Agregar timedelta
 from app.database.collections import users_collection, accessibility_logs_collection
 from app.models.user import User, AccessibilityPreferences
 from app.models.accessibility import AccessibilityLog, AccessibilityEventType
@@ -19,16 +19,27 @@ class UserService:
             # Verificar si el email ya existe
             existing_user = await users_collection.find_user_by_email(user_data["email"])
             if existing_user:
+                logger.warning(f"⚠️ Email ya existe: {user_data['email']}")
                 return None
             
             # Hashear contraseña
             user_data["password_hash"] = AuthService.hash_password(user_data.pop("password"))
             
-            # Generar token de verificación
-            verification_token = AuthService.generate_verification_token()
+            # ✅ CORRECCIÓN: Generar CÓDIGO de verificación
+            from app.services.verification_service import verification_service
+            verification_code = verification_service.generate_verification_code()
+            verification_expires = datetime.utcnow() + timedelta(minutes=15)
+            
             if "security" not in user_data:
                 user_data["security"] = {}
-            user_data["security"]["email_verification_token"] = verification_token
+            
+            # ✅ IMPORTANTE: Guardar como objeto, no como string simple
+            user_data["security"]["email_verification_code"] = {
+                "code": verification_code,
+                "expires_at": verification_expires,
+                "attempts": 0,
+                "created_at": datetime.utcnow()
+            }
             
             # Crear usuario
             user = await users_collection.create_user(user_data)
@@ -37,13 +48,19 @@ class UserService:
             await UserService.log_accessibility_event(
                 str(user["_id"]),
                 AccessibilityEventType.PREFERENCE_CHANGED,
-                {"event": "user_registered", "accessibility_level": user_data.get("accessibility", {}).get("visual_impairment_level", "none")}
+                {
+                    "event": "user_registered", 
+                    "accessibility_level": user_data.get("accessibility", {}).get("visual_impairment_level", "none")
+                }
             )
             
+            logger.info(f"✅ Usuario creado exitosamente: {user['email']}")
             return user
             
         except Exception as e:
             logger.error(f"❌ Error creando usuario: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     @staticmethod

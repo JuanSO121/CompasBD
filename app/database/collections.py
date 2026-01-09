@@ -136,16 +136,16 @@ class UsersCollection:
             logger.error(f"❌ Error bloqueando cuenta: {e}")
             return False
         
-    async def find_user_by_email_verification_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Buscar usuario por token de verificación de email"""
+
+    
+    async def find_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Buscar usuario por email (ya existe, verificar que esté)"""
         try:
             collection = self.get_collection()
-            user = await collection.find_one({
-                "security.email_verification_token": token
-            })
+            user = await collection.find_one({"email": email})
             return user
         except Exception as e:
-            logger.error(f"❌ Error buscando usuario por token de verificación: {e}")
+            logger.error(f"❌ Error buscando usuario por email: {e}")
             return None
 
 class AccessibilityLogsCollection:

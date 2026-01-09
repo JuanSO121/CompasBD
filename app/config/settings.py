@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import List
-# C:\Users\sanch\Documents\Tesis\flutter_back\.env
+
 class Settings(BaseSettings):
     DATABASE_URL: str
     DATABASE_NAME: str

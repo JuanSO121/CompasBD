@@ -64,7 +64,142 @@ class EmailService:
         except Exception as e:
             logger.error(f"❌ Error enviando email: {e}")
             return False
-    
+        
+    @staticmethod
+    async def send_verification_code_email(
+        email: str, 
+        code: str, 
+        user_name: str = "",
+        expires_minutes: int = 15
+    ) -> bool:
+        """Enviar email con código de verificación accesible"""
+        
+        subject = "Código de Verificación - App Accesible"
+        
+        # Formatear código para mejor lectura por TTS (espaciado)
+        spaced_code = ' '.join(code)
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{subject}</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background-color: #2563eb; color: white; padding: 30px 20px; text-align: center; border-radius: 12px 12px 0 0; }}
+                .content {{ padding: 30px 20px; background: white; }}
+                .code-container {{ 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 30px; 
+                    text-align: center; 
+                    border-radius: 16px;
+                    margin: 30px 0;
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+                }}
+                .verification-code {{ 
+                    font-size: 48px; 
+                    font-weight: bold; 
+                    color: white;
+                    letter-spacing: 12px;
+                    text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+                    margin: 20px 0;
+                    font-family: 'Courier New', monospace;
+                }}
+                .code-label {{
+                    color: white;
+                    font-size: 18px;
+                    font-weight: 600;
+                    margin-bottom: 10px;
+                }}
+                .accessible-info {{ 
+                    background-color: #f0f9ff; 
+                    padding: 20px; 
+                    margin: 20px 0; 
+                    border-left: 4px solid #2563eb;
+                    border-radius: 8px;
+                }}
+                .info-box {{
+                    background-color: #fef3c7;
+                    padding: 15px;
+                    border-left: 4px solid #f59e0b;
+                    border-radius: 8px;
+                    margin: 20px 0;
+                }}
+                ul {{
+                    list-style: none;
+                    padding-left: 0;
+                }}
+                li {{
+                    padding: 8px 0;
+                }}
+                li:before {{
+                    content: "✓ ";
+                    color: #16a34a;
+                    font-weight: bold;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔐 Código de Verificación</h1>
+                </div>
+                
+                <div class="content">
+                    <p>Hola{"" if not user_name else f" {user_name}"},</p>
+                    
+                    <p style="font-size: 17px;">Tu código de verificación para activar tu cuenta es:</p>
+                    
+                    <div class="code-container">
+                        <div class="code-label">TU CÓDIGO ES:</div>
+                        <div class="verification-code">
+                            {code}
+                        </div>
+                        <p style="color: white; margin-top: 15px; font-size: 14px;">
+                            ⏱️ Válido por {expires_minutes} minutos
+                        </p>
+                    </div>
+                    
+                    <div class="accessible-info">
+                        <h3 style="margin-top: 0; color: #2563eb;">📱 Para usuarios de lectores de pantalla:</h3>
+                        <p style="font-size: 16px;">
+                            El código es: <strong style="font-size: 18px; letter-spacing: 4px;">{spaced_code}</strong>
+                        </p>
+                    </div>
+                    
+                    <div class="info-box">
+                        <h3 style="margin-top: 0; color: #f59e0b;">⚠️ Importante:</h3>
+                        <ul>
+                            <li>No compartas este código con nadie</li>
+                            <li>El código expira en {expires_minutes} minutos</li>
+                            <li>Tienes 5 intentos para ingresar el código correcto</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_content = f"""
+    Código de Verificación
+
+    Hola{"" if not user_name else f" {user_name}"},
+
+    Tu código de verificación es: {code}
+    (Espaciado: {spaced_code})
+
+    Válido por {expires_minutes} minutos.
+    Tienes 5 intentos para ingresarlo.
+
+    No compartas este código con nadie.
+        """
+        
+        return await EmailService.send_email([email], subject, html_content, text_content)
+
     @staticmethod
     async def send_verification_email(email: str, token: str, user_name: str = "") -> bool:
         """Enviar email de verificación accesible"""
@@ -244,3 +379,4 @@ class EmailService:
         return await EmailService.send_email([email], subject, html_content, text_content)
 
 email_service = EmailService()
+

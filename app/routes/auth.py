@@ -89,22 +89,20 @@ async def register_user(user_data: UserRegistration, request: Request):
             "accessibility": {
                 "visual_impairment_level": user_data.visual_impairment_level,
                 "screen_reader_user": user_data.screen_reader_user,
-                **{k: v for k, v in {
-                    "preferred_tts_speed": 1.0,
-                    "preferred_font_size": "medium",
-                    "high_contrast_mode": False,
-                    "dark_mode_enabled": False,
-                    "haptic_feedback_enabled": True,
-                    "audio_descriptions_enabled": user_data.visual_impairment_level in ["blind", "low_vision"],
-                    "voice_commands_enabled": False,
-                    "gesture_navigation_enabled": True,
-                    "extended_timeout_needed": user_data.visual_impairment_level == "blind",
-                    "slow_animations": False,
-                    "custom_notification_sounds": False,
-                    "audio_confirmation_enabled": True,
-                    "skip_repetitive_content": True,
-                    "landmark_navigation_preferred": True
-                }.items()}
+                "preferred_tts_speed": 1.0,
+                "preferred_font_size": "medium",
+                "high_contrast_mode": False,
+                "dark_mode_enabled": False,
+                "haptic_feedback_enabled": True,
+                "audio_descriptions_enabled": user_data.visual_impairment_level in ["blind", "low_vision"],
+                "voice_commands_enabled": False,
+                "gesture_navigation_enabled": True,
+                "extended_timeout_needed": user_data.visual_impairment_level == "blind",
+                "slow_animations": False,
+                "custom_notification_sounds": False,
+                "audio_confirmation_enabled": True,
+                "skip_repetitive_content": True,
+                "landmark_navigation_preferred": True
             }
         }
 
@@ -120,15 +118,16 @@ async def register_user(user_data: UserRegistration, request: Request):
                 }
             )
 
-        # Enviar email de verificación
-        verification_token = new_user["security"]["email_verification_token"]
-        email_sent = await email_service.send_verification_email(
+        # ✅ CAMBIO: Enviar código de verificación
+        verification_code = new_user["security"]["email_verification_code"]["code"]
+        email_sent = await email_service.send_verification_code_email(
             email=new_user["email"],
-            token=verification_token,
-            user_name=new_user["profile"].get("first_name", "")
+            code=verification_code,
+            user_name=new_user["profile"].get("first_name", ""),
+            expires_minutes=15
         )
 
-        success_message = "Cuenta creada exitosamente. Revise su email para verificar su cuenta."
+        success_message = "Cuenta creada exitosamente. Revise su email para el código de verificación de 6 dígitos."
         if not email_sent:
             success_message += " Nota: No pudimos enviar el email de verificación, pero puede solicitar uno nuevo más tarde."
 
@@ -139,10 +138,11 @@ async def register_user(user_data: UserRegistration, request: Request):
                 "user_id": str(new_user["_id"]),
                 "email": new_user["email"],
                 "verification_required": True,
+                "verification_method": "code",  # ✅ NUEVO
                 "email_sent": email_sent
             },
             accessibility_info={
-                "announcement": "Cuenta creada exitosamente. Revise su email para el siguiente paso.",
+                "announcement": "Cuenta creada. Revise su email para el código de 6 dígitos.",
                 "focus_element": "success-message",
                 "haptic_pattern": "success"
             }
@@ -150,6 +150,8 @@ async def register_user(user_data: UserRegistration, request: Request):
 
     except Exception as e:
         logger.error(f"❌ Error en registro: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return AccessibleHelpers.create_accessible_response(
             success=False,
             message="Error interno del servidor durante el registro",
@@ -159,7 +161,7 @@ async def register_user(user_data: UserRegistration, request: Request):
                 "haptic_pattern": "error"
             }
         )
-
+        
 @router.post("/login", response_model=dict)
 async def login_user(login_data: UserLogin, request: Request):
     """Login de usuario accesible"""
@@ -530,6 +532,193 @@ async def verify_email(token: str):
             accessibility_info={
                 "announcement": "Error verificando email. Intente nuevamente.",
                 "focus_element": "error-message",
+                "haptic_pattern": "error"
+            }
+        )
+        
+@router.post("/send-verification-code", response_model=dict)
+async def send_verification_code(email_data: dict, request: Request):
+    """Enviar código de verificación por email"""
+    try:
+        from app.services.verification_service import verification_service
+        from app.services.security_service import security_service
+        
+        email = email_data.get("email")
+        if not email:
+            return AccessibleHelpers.create_accessible_response(
+                success=False,
+                message="Email requerido",
+                errors=[AccessibleHelpers.create_accessible_error(
+                    message="Debe proporcionar un email",
+                    field="email"
+                )],
+                accessibility_info={
+                    "announcement": "Error: Email requerido",
+                    "focus_element": "email-field",
+                    "haptic_pattern": "error"
+                }
+            )
+        
+        # Buscar usuario
+        user = await users_collection.find_user_by_email(email)
+        if not user:
+            return AccessibleHelpers.create_accessible_response(
+                success=True,
+                message="Si el email existe, recibirá un código de verificación",
+                accessibility_info={
+                    "announcement": "Revise su email para el código de verificación",
+                    "haptic_pattern": "info"
+                }
+            )
+        
+        # Si ya está verificado
+        if user.get("is_verified", False):
+            return AccessibleHelpers.create_accessible_response(
+                success=False,
+                message="Esta cuenta ya está verificada",
+                accessibility_info={
+                    "announcement": "Cuenta ya verificada. Puede iniciar sesión.",
+                    "haptic_pattern": "info"
+                }
+            )
+        
+        # Enviar código
+        user_name = user.get("profile", {}).get("first_name", "")
+        email_sent = await verification_service.send_verification_code(email, user_name)
+        
+        if email_sent:
+            return AccessibleHelpers.create_accessible_response(
+                success=True,
+                message="Código de verificación enviado. Revise su email.",
+                data={
+                    "expires_in_minutes": verification_service.CODE_EXPIRATION_MINUTES,
+                    "max_attempts": verification_service.MAX_ATTEMPTS
+                },
+                accessibility_info={
+                    "announcement": f"Código enviado. Tiene {verification_service.CODE_EXPIRATION_MINUTES} minutos para ingresarlo.",
+                    "haptic_pattern": "success"
+                }
+            )
+        else:
+            return AccessibleHelpers.create_accessible_response(
+                success=False,
+                message="Error enviando el código. Intente nuevamente.",
+                accessibility_info={
+                    "announcement": "Error enviando código. Intente nuevamente.",
+                    "haptic_pattern": "error"
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Error enviando código: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return AccessibleHelpers.create_accessible_response(
+            success=False,
+            message="Error interno del servidor",
+            accessibility_info={
+                "announcement": "Error del servidor. Intente más tarde.",
+                "haptic_pattern": "error"
+            }
+        )
+
+
+@router.post("/verify-code", response_model=dict)
+async def verify_code_endpoint(verification_data: dict):
+    """Verificar código de verificación"""
+    try:
+        from app.services.verification_service import verification_service
+        
+        email = verification_data.get("email")
+        code = verification_data.get("code")
+        
+        if not email or not code:
+            return AccessibleHelpers.create_accessible_response(
+                success=False,
+                message="Email y código son requeridos",
+                errors=[AccessibleHelpers.create_accessible_error(
+                    message="Faltan datos requeridos",
+                    field="email" if not email else "code"
+                )],
+                accessibility_info={
+                    "announcement": "Error: Falta información requerida",
+                    "focus_element": "email-field" if not email else "code-field",
+                    "haptic_pattern": "error"
+                }
+            )
+        
+        # Limpiar y validar código
+        code = code.strip().replace(" ", "")
+        if not code.isdigit() or len(code) != 6:
+            return AccessibleHelpers.create_accessible_response(
+                success=False,
+                message="Código inválido. Debe ser de 6 dígitos.",
+                errors=[AccessibleHelpers.create_accessible_error(
+                    message="Formato de código inválido",
+                    field="code",
+                    suggestion="Ingrese los 6 dígitos del código"
+                )],
+                accessibility_info={
+                    "announcement": "Código inválido. Ingrese 6 dígitos.",
+                    "focus_element": "code-field",
+                    "haptic_pattern": "error"
+                }
+            )
+        
+        # Verificar código
+        result = await verification_service.verify_code(email, code)
+        
+        if result["success"]:
+            return AccessibleHelpers.create_accessible_response(
+                success=True,
+                message="¡Email verificado exitosamente! Ya puede iniciar sesión.",
+                data={"verified": True},
+                accessibility_info={
+                    "announcement": "Email verificado exitosamente. Redirigiendo al inicio de sesión.",
+                    "haptic_pattern": "success"
+                }
+            )
+        else:
+            error_messages = {
+                "user_not_found": "Usuario no encontrado",
+                "no_code": "No hay código activo. Solicite uno nuevo.",
+                "expired": "Código expirado. Solicite uno nuevo.",
+                "max_attempts": "Demasiados intentos. Solicite un nuevo código.",
+                "invalid_code": result.get("message", "Código incorrecto"),
+                "server_error": "Error del servidor. Intente nuevamente."
+            }
+            
+            error_type = result.get("error_type", "server_error")
+            message = error_messages.get(error_type, result.get("message"))
+            
+            return AccessibleHelpers.create_accessible_response(
+                success=False,
+                message=message,
+                data={
+                    "error_type": error_type,
+                    "remaining_attempts": result.get("remaining_attempts")
+                },
+                errors=[AccessibleHelpers.create_accessible_error(
+                    message=message,
+                    field="code",
+                    suggestion="Verifique el código e intente nuevamente" if error_type == "invalid_code" else "Solicite un nuevo código"
+                )],
+                accessibility_info={
+                    "announcement": message,
+                    "focus_element": "code-field" if error_type == "invalid_code" else "resend-button",
+                    "haptic_pattern": "error"
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Error verificando código: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return AccessibleHelpers.create_accessible_response(
+            success=False,
+            message="Error interno verificando el código",
+            accessibility_info={
+                "announcement": "Error del servidor. Intente nuevamente.",
                 "haptic_pattern": "error"
             }
         )

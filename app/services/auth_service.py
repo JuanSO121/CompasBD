@@ -90,7 +90,7 @@ class AuthService:
             return payload
             
         except JWTError as e:
-            logger.error(f"❌ Error verificando token: {e}")
+            logger.error(f"Error verificando token: {e}")
             return None
     
     @staticmethod
@@ -130,7 +130,7 @@ class AuthService:
             return user
             
         except Exception as e:
-            logger.error(f"❌ Error autenticando usuario: {e}")
+            logger.error(f" Error autenticando usuario: {e}")
             return None
 
 auth_service = AuthService()

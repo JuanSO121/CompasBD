@@ -79,8 +79,40 @@ class UserSecurity(BaseModel):
     last_login: Optional[datetime] = None
     failed_login_attempts: int = Field(default=0)
     account_locked_until: Optional[datetime] = None
+
+    # Password reset (tokens siguen siendo válidos)
     password_reset_tokens: List[Dict[str, Any]] = Field(default_factory=list)
-    email_verification_token: Optional[str] = None
+
+    # ✅ VERIFICACIÓN POR CÓDIGO (EMAIL) - CAMBIO PRINCIPAL
+    email_verification_code: Optional[str] = Field(
+        default=None,
+        min_length=6,
+        max_length=6,
+        description="Código numérico de verificación de email"
+    )
+    email_verification_expires: Optional[datetime] = Field(
+        default=None,
+        description="Fecha de expiración del código de verificación"
+    )
+    email_verification_attempts: int = Field(
+        default=0,
+        description="Intentos de verificación del código"
+    )
+    
+    # ✅ NUEVO: Fecha de verificación exitosa
+    email_verified_at: Optional[datetime] = Field(
+        default=None,
+        description="Fecha en que se verificó el email"
+    )
+    
+    # ✅ NUEVO: Para usuarios que omiten verificación
+    verification_skipped_at: Optional[datetime] = Field(
+        default=None,
+        description="Fecha en que el usuario omitió la verificación"
+    )
+
+    # ❌ ELIMINAR O COMENTAR: Ya no usamos token para verificación
+    # email_verification_token: Optional[str] = None
 
     # Configuraciones accesibles
     biometric_enabled: bool = Field(default=False)
@@ -89,7 +121,7 @@ class UserSecurity(BaseModel):
 
 
 class User(BaseModel):
-    """Modelo completo de usuario"""
+    """Modelo de usuario"""
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     email: EmailStr = Field(..., description="Email único del usuario")
     password_hash: str = Field(..., min_length=1)

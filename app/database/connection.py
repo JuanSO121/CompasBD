@@ -37,24 +37,31 @@ async def close_mongo_connection():
 async def create_indexes():
     """Crear índices necesarios"""
     try:
-        # Índices para usuarios
         users_collection = db.database.users
+
         await users_collection.create_index("email", unique=True)
-        await users_collection.create_index("security.email_verification_token")
+
+        # ✅ Verificación por código
+        await users_collection.create_index("security.email_verification_code")
+        await users_collection.create_index("security.email_verification_expires")
+
+        # ✅ Reset de contraseña (sigue usando token)
         await users_collection.create_index("security.password_reset_tokens.token")
+
         await users_collection.create_index("created_at")
-        
-        # Índices para logs de accesibilidad
+
+        # Logs de accesibilidad
         logs_collection = db.database.accessibility_logs
         await logs_collection.create_index("user_id")
         await logs_collection.create_index("timestamp")
         await logs_collection.create_index("event_type")
         await logs_collection.create_index([("user_id", 1), ("timestamp", -1)])
-        
+
         logger.info("✅ Índices creados exitosamente")
-        
+
     except Exception as e:
         logger.error(f"❌ Error creando índices: {e}")
+
 
 def get_database():
     """Obtener instancia de base de datos"""
